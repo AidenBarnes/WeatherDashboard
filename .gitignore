@@ -1,0 +1,10 @@
+#Environent Data
+venv/
+.env
+#Python Cache
+*.pyc
+__pycache__/
+#Local Data
+.csv
+.txt
+weather_report.csv
