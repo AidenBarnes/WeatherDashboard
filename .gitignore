@@ -5,6 +5,6 @@ venv/
 *.pyc
 __pycache__/
 #Local Data
-.csv
-.txt
-weather_report.csv
+*.csv
+*.txt
+
