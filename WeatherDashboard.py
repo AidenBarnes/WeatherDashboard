@@ -2,15 +2,66 @@
 import os
 import requests
 import pandas as pd
+from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 
 load_dotenv()  
 
 api_key = os.getenv("API_KEY")
+DATAFILE = "weather_report.csv" 
 
-DATAFILE = "weather_report.csv"
+#Cosmetic functions
+def unixToDatetime(unixTime):
+    return datetime.fromtimestamp(unixTime, tz=timezone.utc)
 
+def utcToLocal(utc, tzDelta):
+    return unixToDatetime(utc) + timedelta(seconds=tzDelta)
+
+def convertDegtoDirection(deg: int) -> str:
+    #for once I'm missing switch TT
+    #yes this function is used ONCE TT
+    direction = ''
+    #Quad I
+    if deg == 0 or deg == 360:
+        direction = 'E'
+    elif deg in range(1, 31):
+        direction = 'ENE'
+    elif deg in range(31, 61):
+        direction = 'NE'
+    elif deg in range (61, 90):
+        direction = 'NNE'
+    #Quad II
+    elif deg == 90:
+        direction = 'N'
+    elif deg in range(91, 121):
+        direction = 'NNW'
+    elif deg in range(121, 151):
+        direction = 'NW'
+    elif deg in range(151, 180):
+        direction = 'WNW'
+    #Quad III
+    elif deg == 180:
+        direction = 'W'
+    elif deg in range(181, 211):
+        direction = 'WSW'
+    elif deg in range(211, 241):
+        direction = 'SW'
+    elif deg in range(241, 270):
+        direction = 'SSW'
+    #Quad IV
+    elif deg == 270:
+        direction = 'S'
+    elif deg in range(271, 301):
+        direction = 'SSE'
+    elif deg in range(301, 331):
+        direction = 'SE'
+    elif deg in range(331, 360):
+        direction = 'ESE'
+
+    return direction
+
+#Data manipulation
 def fetchWeather(city: str, apikey: str, units: str) -> dict:
     url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={apikey}&units={units}"
     response = requests.get(url)
@@ -25,7 +76,7 @@ def gatherData(rawdata: dict) -> dict:
         "high": rawdata["main"]["temp_max"],
         "low": rawdata["main"]["temp_min"],
         "windspeed": rawdata["wind"]["speed"],
-        "windgusts": rawdata["wind"]["gust"],
+        "windgusts": rawdata["wind"].get("gust", "N/A"),
         "degrees": rawdata["wind"]["deg"],
         "sunrise": rawdata["sys"]["sunrise"],
         "sunset": rawdata["sys"]["sunset"],
@@ -33,16 +84,7 @@ def gatherData(rawdata: dict) -> dict:
         "tzdiff": rawdata["timezone"]
     }
 
-def unixToDatetime(unixTime):
-    return datetime.fromtimestamp(unixTime, tz=timezone.utc)
-
-def utcToLocal(utc, tzDelta):
-    return unixToDatetime(utc) + timedelta(seconds=tzDelta)
-
-def convertDegtoDirection(deg):
-    #for once I'm missing switch TT
-    return 0
-
+#Handlers
 def displayHelper(filtered_data: dict, Units: str):
     unitListMetric = ['',  ' \u00b0C', ' meters/s', '\u00b0', ' Second difference from UTC']
     unitlistImperial = ['', ' \u00b0F', ' miles/h', '\u00b0', ' Second difference from UTC']
@@ -67,13 +109,12 @@ def displayHelper(filtered_data: dict, Units: str):
     print("Condition: " + filtered_data["condition"])
     print("Wind Speed: " + str(filtered_data["windspeed"]) + unitList[2])
     print("Wind Gust Speed: " + str(filtered_data["windgusts"]) + unitList[2])
-    print("Wind Direction: " + str(filtered_data["degrees"]) + unitList[3])
+    print("Wind Direction: " + str(filtered_data["degrees"]) + unitList[3] + ' ' + convertDegtoDirection(filtered_data.get("degrees")))
     print("\n---Sun Info (Sunrise and Sunset are Local, then UTC)---")
     print("Timezone: " + str(filtered_data["tzdiff"]) + unitList[4])
     print("Sunrise: " + utcToLocal(filtered_data["sunrise"], filtered_data["tzdiff"]).strftime("%H:%M") + ", " + unixToDatetime(filtered_data["sunrise"]).strftime('%H:%M'))
     print("Sunset: " + utcToLocal(filtered_data["sunset"], filtered_data["tzdiff"]).strftime("%H:%M") + ", " + unixToDatetime(filtered_data["sunset"]).strftime('%H:%M'))
     print(45 * "-")
-    #FUTURE(easy): convert raw_filtered[degrees] to direction and overall UI improvements
 
 def inputHelper():
     units = None
@@ -96,10 +137,25 @@ def inputHelper():
     
     return units, city
 
+def csvHandler(data: dict, filename: str):
+    df = pd.DataFrame([data])
+    base_dir = Path(__file__).parent
+    filepath = base_dir / filename
+    try:
+        existing = pd.read_csv(filename)
+        updated = pd.concat([existing, df], ignore_index=True)
+    except FileNotFoundError:
+        updated = df
+
+    updated.to_csv(filepath, index=False)
+
+    
+#main
 def main():
     units, city = inputHelper()
     raw_filtered = gatherData(fetchWeather(city, api_key, units))
     displayHelper(raw_filtered, units)
+    csvHandler(raw_filtered, DATAFILE)
 
         
 main()    
