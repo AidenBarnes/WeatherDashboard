@@ -1,10 +1,12 @@
 
 import os
+import time
 import requests
 import pandas as pd
+import schedule as sch
 from pathlib import Path
-from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
+from datetime import datetime, timezone, timedelta
 
 load_dotenv()  
 
@@ -85,7 +87,7 @@ def gatherData(rawdata: dict) -> dict:
     }
 
 #Handlers
-def displayHelper(filtered_data: dict, Units: str):
+def currentDisplayHelper(filtered_data: dict, Units: str):
     unitListMetric = ['',  ' \u00b0C', ' meters/s', '\u00b0', ' Second difference from UTC']
     unitlistImperial = ['', ' \u00b0F', ' miles/h', '\u00b0', ' Second difference from UTC']
     unitList = []
@@ -130,32 +132,71 @@ def inputHelper():
             response.raise_for_status()
             break
             
-        except requests.exceptions.HTTPError as e:
+        except requests.exceptions.HTTPError:
             print("API says city is invalid.")
         except requests.exceptions.RequestException:
             print("Network error — check your internet or API settings.")
     
     return units, city
 
-def csvHandler(data: dict, filename: str):
+def csvWrite(data: dict, filename: str):
     df = pd.DataFrame([data])
     base_dir = Path(__file__).parent
     filepath = base_dir / filename
-    try:
-        existing = pd.read_csv(filename)
-        updated = pd.concat([existing, df], ignore_index=True)
-    except FileNotFoundError:
-        updated = df
 
-    updated.to_csv(filepath, index=False)
+    file_exists = filepath.exists()
+    is_empty = not file_exists or filepath.stat().st_size == 0
 
-    
-#main
-def main():
+    df.to_csv(filepath, mode='a', header=is_empty, index=False)
+
+def scheduleWeatherCall(units, city, filename: str):
+    raw_filtered = gatherData(fetchWeather(city, api_key, units))
+    csvWrite(raw_filtered, filename)
+    print("Data logged to " + filename + ", Timestamp: " + datetime.now().strftime("%H:%M"))
+
+
+#callables
+def scheduleWeatherCaller():
+    print("\n" + (45 * "-") + "\n")
+    print("NOTE/WARNING: This process is not threaded, since it doesn't have a good point to stop itself. " \
+    "This means closing the window will STOP GATHERING DATA\nIf you would like more info on gathering data, " \
+    "please consult the readme(TODO)")
+    print("\n" + (45 * "-") + "\n")
+    time.sleep(5)
+    units, city = inputHelper()
+    filename = str(input("Please type out the name of the file you want data to go to. Please be specific, and include the .csv (data file must be csv)\n"))
+    scheduleWeatherCall(units, city, filename)
+    sch.every(30).minutes.do(lambda: scheduleWeatherCall(units, city, filename))
+    while True:
+        sch.run_pending()
+        time.sleep(1)
+
+def currentWeather():
     units, city = inputHelper()
     raw_filtered = gatherData(fetchWeather(city, api_key, units))
-    displayHelper(raw_filtered, units)
-    csvHandler(raw_filtered, DATAFILE)
+    currentDisplayHelper(raw_filtered, units)
 
-        
-main()    
+#main
+def main():
+    while True:
+        while True:
+            try:
+                choice = int(input("What do you want to do?\n 1. Get weather at the moment\n 2. Start gathering data (will lock you out of getting current)\n 3. exit\n"))
+                break
+            except ValueError:
+                print("Please enter an int.")
+                time.sleep(1)
+        if choice == 1:
+            currentWeather()
+            time.sleep(5)
+        elif choice ==2:
+            scheduleWeatherCaller()
+        elif choice == 3:
+            break
+        else:
+            print("out of range")
+            time.sleep(1)
+
+
+       
+main()
