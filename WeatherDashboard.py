@@ -11,9 +11,9 @@ from datetime import datetime, timezone, timedelta
 load_dotenv()  
 
 api_key = os.getenv("API_KEY")
-DATAFILE = "weather_report.csv" 
 
-#Cosmetic functions
+
+#Cosmetic functions/helpers
 def unixToDatetime(unixTime):
     return datetime.fromtimestamp(unixTime, tz=timezone.utc)
 
@@ -63,6 +63,12 @@ def convertDegtoDirection(deg: int) -> str:
 
     return direction
 
+def getUnitList(units: str) -> list:
+    if units == 'metric':
+        return ['',  ' \u00b0C', ' meters/s', '\u00b0', ' Second difference from UTC']
+    if units == 'imperial':
+        return ['', ' \u00b0F', ' miles/h', '\u00b0', ' Second difference from UTC']
+
 #Data manipulation
 def fetchWeather(city: str, apikey: str, units: str) -> dict:
     url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={apikey}&units={units}"
@@ -88,14 +94,8 @@ def gatherData(rawdata: dict) -> dict:
 
 #Handlers
 def currentDisplayHelper(filtered_data: dict, Units: str):
-    unitListMetric = ['',  ' \u00b0C', ' meters/s', '\u00b0', ' Second difference from UTC']
-    unitlistImperial = ['', ' \u00b0F', ' miles/h', '\u00b0', ' Second difference from UTC']
-    unitList = []
-    if Units == 'metric':
-        unitList = unitListMetric
-    elif Units == 'imperial':
-        unitList = unitlistImperial
-    
+    unitList = getUnitList(Units)
+
     #Header
     print(45 * "-")
     print("\tWeather for: " +  str(filtered_data["city"]).upper())
@@ -139,7 +139,8 @@ def inputHelper():
     
     return units, city
 
-def csvWrite(data: dict, filename: str):
+def csvWrite(data: dict, filename: str, units:str):
+    data["units"] = units
     df = pd.DataFrame([data])
     base_dir = Path(__file__).parent
     filepath = base_dir / filename
@@ -151,7 +152,7 @@ def csvWrite(data: dict, filename: str):
 
 def scheduleWeatherCall(units, city, filename: str):
     raw_filtered = gatherData(fetchWeather(city, api_key, units))
-    csvWrite(raw_filtered, filename)
+    csvWrite(raw_filtered, filename, units)
     print("Data logged to " + filename + ", Timestamp: " + datetime.now().strftime("%H:%M"))
 
 
@@ -198,5 +199,6 @@ def main():
             time.sleep(1)
 
 
-       
-main()
+if __name__ == "__main__":     
+    #main()
+    scheduleWeatherCall('metric', 'Seattle', 'weather_report.csv')
