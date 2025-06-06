@@ -200,5 +200,4 @@ def main():
 
 
 if __name__ == "__main__":     
-    #main()
-    scheduleWeatherCall('metric', 'Seattle', 'weather_report.csv')
+    main()
