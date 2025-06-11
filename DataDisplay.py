@@ -2,6 +2,7 @@ import matplotlib.pyplot as mp
 import pandas as pd
 from pathlib import Path
 import numpy as np
+import datetime
 from WeatherDashboard import getUnitList
 
 USABLE_COLUMN_LIST = ['temp','high','low','windspeed','windgusts','degrees','sunrise','sunset']
@@ -35,6 +36,14 @@ def getData():
 def extractColumn(df, name):
     return df[name]
 
+def getDaysMean(df: pd.DataFrame, timestamp_col: str = 'timestamp'):
+    if not pd.api.types.is_datetime64_any_dtype(df[timestamp_col]):
+        df[timestamp_col] = pd.to_datetime(df[timestamp_col])
+    
+    df['date'] = df[timestamp_col].datetime.date
+    grouped = df.groupby('date').mean(numeric_only=True)
+    return grouped.to_dict(orient="Index")
+
 def getMean(values: list) -> int:
     return sum(values)/len(values)
 
@@ -56,7 +65,9 @@ def main():
         if name not in USABLE_COLUMN_LIST:
             print("Not viewable data or doesn't exist, try again. " + str(USABLE_COLUMN_LIST))
     data = extractColumn(df, name)
+    avgdata = getDaysMean(df)
     graph(data, name, units)
+
 
 
 main()
