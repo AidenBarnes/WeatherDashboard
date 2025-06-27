@@ -7,4 +7,5 @@ __pycache__/
 #Local Data
 *.csv
 *.txt
-
+#Test data exceptions
+!test_data/test-data-*.csv
